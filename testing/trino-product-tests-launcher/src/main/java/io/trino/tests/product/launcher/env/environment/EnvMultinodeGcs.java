@@ -58,8 +58,6 @@ public class EnvMultinodeGcs
     private final String gcsTestDirectory = "env_multinode_gcs_" + UUID.randomUUID();
     private final DockerFiles dockerFiles;
     private final String hadoopImageVersion;
-    private final String gcpBase64EncodedCredentials;
-    private final String gcpStorageBucket;
 
     @Inject
     public EnvMultinodeGcs(DockerFiles dockerFiles, StandardMultinode multinode, Hadoop hadoop, EnvironmentConfig environmentConfig)
@@ -67,13 +65,14 @@ public class EnvMultinodeGcs
         super(ImmutableList.of(multinode, hadoop));
         this.dockerFiles = requireNonNull(dockerFiles, "dockerFiles is null");
         this.hadoopImageVersion = requireNonNull(environmentConfig, "environmentConfig is null").getHadoopImagesVersion();
-        this.gcpBase64EncodedCredentials = requireEnv("GCP_CREDENTIALS_KEY");
-        this.gcpStorageBucket = requireEnv("GCP_STORAGE_BUCKET");
     }
 
     @Override
     public void extendEnvironment(Environment.Builder builder)
     {
+        String gcpBase64EncodedCredentials = requireEnv("GCP_CREDENTIALS_KEY");
+        String gcpStorageBucket = requireEnv("GCP_STORAGE_BUCKET");
+
         File gcpCredentialsFile;
         try {
             gcpCredentialsFile = Files.createTempFile("gcp-credentials", ".xml", PosixFilePermissions.asFileAttribute(fromString("rw-r--r--"))).toFile();
@@ -91,7 +90,7 @@ public class EnvMultinodeGcs
                     forHostPath(getCoreSiteOverrideXml(containerGcpCredentialsFile)),
                     "/docker/presto-product-tests/conf/environment/multinode-gcs/core-site-overrides.xml");
             container.withCopyFileToContainer(
-                    forHostPath(getHiveSiteOverrideXml()),
+                    forHostPath(getHiveSiteOverrideXml(gcpStorageBucket)),
                     "/docker/presto-product-tests/conf/environment/multinode-gcs/hive-site-overrides.xml");
             container.withCopyFileToContainer(
                     forHostPath(dockerFiles.getDockerFilesHostPath("conf/environment/multinode-gcs/apply-gcs-config.sh")),
@@ -135,7 +134,7 @@ public class EnvMultinodeGcs
         }
     }
 
-    private Path getHiveSiteOverrideXml()
+    private Path getHiveSiteOverrideXml(String gcpStorageBucket)
     {
         try {
             String hiveSite = Files.readString(dockerFiles.getDockerFilesHostDirectory("conf/environment/multinode-gcs").getPath("hive-site-overrides-template.xml"))
