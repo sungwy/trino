@@ -1474,9 +1474,11 @@ public class DeltaLakeMetadata
             boolean requiresOptIn = transactionLogWriterFactory.newWriter(session, tableHandle.getLocation()).isUnsafe();
             return !requiresOptIn || unsafeWritesEnabled;
         }
-        catch (IllegalArgumentException e) {
-            // No writer is bound for this schema
-            return false;
+        catch (TrinoException e) {
+            if (e.getErrorCode() == NOT_SUPPORTED.toErrorCode()) {
+                return false;
+            }
+            throw e;
         }
     }
 
