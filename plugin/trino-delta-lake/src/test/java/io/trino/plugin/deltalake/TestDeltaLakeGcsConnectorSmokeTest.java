@@ -19,6 +19,7 @@ import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Resources;
 import com.google.common.reflect.ClassPath;
+import io.airlift.log.Logger;
 import io.trino.hadoop.ConfigurationInstantiator;
 import io.trino.plugin.deltalake.util.DockerizedDataLake;
 import io.trino.plugin.hive.gcs.GoogleGcsConfigurationInitializer;
@@ -70,6 +71,7 @@ import static java.util.regex.Matcher.quoteReplacement;
 public class TestDeltaLakeGcsConnectorSmokeTest
         extends BaseDeltaLakeConnectorSmokeTest
 {
+    private static final Logger LOG = Logger.get(TestDeltaLakeGcsConnectorSmokeTest.class);
     private static final FileAttribute<?> READ_ONLY_PERMISSIONS = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-r--r--"));
 
     private final String gcpStorageBucket;
@@ -110,7 +112,8 @@ public class TestDeltaLakeGcsConnectorSmokeTest
                 fileSystem.delete(new org.apache.hadoop.fs.Path(bucketUrl()), true);
             }
             catch (IOException e) {
-                e.printStackTrace();
+                // The GCS bucket should be configured to expire objects automatically. Clean up issues do not need to fail the test.
+                LOG.warn(e, "Failed to clean up GCS test directory: %s", bucketUrl());
             }
         }
     }
@@ -230,6 +233,7 @@ public class TestDeltaLakeGcsConnectorSmokeTest
                     paths.add(file.getPath().toString());
                 }
             }
+            return paths.build();
         }
         catch (FileNotFoundException e) {
             return ImmutableList.of();
@@ -237,8 +241,6 @@ public class TestDeltaLakeGcsConnectorSmokeTest
         catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-
-        return paths.build();
     }
 
     @Override
