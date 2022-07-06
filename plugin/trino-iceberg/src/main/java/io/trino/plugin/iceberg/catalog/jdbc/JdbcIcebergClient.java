@@ -13,32 +13,57 @@
  */
 package io.trino.plugin.iceberg.catalog.jdbc;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.Weigher;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import io.trino.collect.cache.EvictableCacheBuilder;
+import io.trino.spi.TrinoException;
+import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.connector.TableNotFoundException;
 import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 
 import java.util.AbstractMap.SimpleEntry;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
+import static com.google.common.base.Verify.verify;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
+import static com.google.common.collect.Iterables.getOnlyElement;
+import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_AMBIGUOUS_OBJECT_NAME;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 public class JdbcIcebergClient
 {
     private final JdbcIcebergConnectionFactory connectionFactory;
     private final String catalogId;
+    private final boolean caseInsensitiveNameMatching;
+    private final Cache<String, Map<String, Optional<RemoteDatabaseObject>>> remoteSchemaToRemoteTableNamesCache;
 
-    public JdbcIcebergClient(JdbcIcebergConnectionFactory connectionFactory, String catalogId)
+    public JdbcIcebergClient(JdbcIcebergConnectionFactory connectionFactory, JdbcIcebergConfig config)
     {
         this.connectionFactory = requireNonNull(connectionFactory, "connectionFactory is null");
-        this.catalogId = requireNonNull(catalogId, "catalogId is null");
+        this.catalogId = requireNonNull(config.getCatalogId(), "catalogId is null");
+        this.caseInsensitiveNameMatching = config.isCaseInsensitiveNameMatching();
+        this.remoteSchemaToRemoteTableNamesCache = EvictableCacheBuilder.newBuilder()
+                .maximumWeight(100000)
+                .weigher((Weigher<String, Map<String, Optional<RemoteDatabaseObject>>>) (key, value) -> value.size())
+                .expireAfterWrite(10, MINUTES)
+                .build();
     }
 
-    public List<String> getNamespaces()
+    public List<String> getRemoteNamespaces()
     {
         ImmutableList.Builder<String> namespaces = ImmutableList.builder();
         try (Handle handle = Jdbi.open(connectionFactory)) {
@@ -60,29 +85,36 @@ public class JdbcIcebergClient
         return namespaces.build();
     }
 
+    public List<String> getNamespaces()
+    {
+        return getRemoteNamespaces().stream().map((namespace) -> namespace.toLowerCase(ENGLISH)).collect(Collectors.toList());
+    }
+
     public Map<String, Object> getNamespaceProperties(String namespace)
     {
+        String remoteSchemaName = toRemoteSchema(namespace).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(namespace));
         try (Handle handle = Jdbi.open(connectionFactory)) {
             return handle.createQuery("" +
-                            "SELECT key, value " +
+                            "SELECT property_key, property_value " +
                             "FROM iceberg_namespace_properties " +
                             "WHERE catalog_name = :catalog AND namespace = :schema")
                     .bind("catalog", catalogId)
-                    .bind("schema", namespace)
-                    .map((rs, ctx) -> new SimpleEntry<>(rs.getString("key"), rs.getString("value")))
+                    .bind("schema", remoteSchemaName)
+                    .map((rs, ctx) -> new SimpleEntry<>(rs.getString("property_key"), rs.getString("property_value")))
                     .collect(toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
     }
 
     public Optional<String> getNamespaceLocation(String namespace)
     {
+        String remoteSchemaName = toRemoteSchema(namespace).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(namespace));
         try (Handle handle = Jdbi.open(connectionFactory)) {
             return handle.createQuery("" +
-                            "SELECT value " +
+                            "SELECT property_value " +
                             "FROM iceberg_namespace_properties " +
-                            "WHERE catalog_name = :catalog AND namespace = :schema AND key = 'location'")
+                            "WHERE catalog_name = :catalog AND namespace = :schema AND property_key = 'location'")
                     .bind("catalog", catalogId)
-                    .bind("schema", namespace)
+                    .bind("schema", remoteSchemaName)
                     .mapTo(String.class)
                     .findOne();
         }
@@ -99,22 +131,38 @@ public class JdbcIcebergClient
         try (Handle handle = Jdbi.open(connectionFactory)) {
             handle.createUpdate("" +
                             "INSERT INTO iceberg_namespace_properties " +
-                            "(catalog_name, namespace, key, value) " +
+                            "(catalog_name, namespace, property_key, property_value) " +
                             "VALUES <values>")
-                    .bindBeanList("values", namespaceProperties.build(), ImmutableList.of("catalogName", "namespace", "key", "value"))
+                    .bindBeanList("values", namespaceProperties.build(), ImmutableList.of("catalogName", "namespace", "propertyKey", "propertyValue"))
                     .execute();
         }
     }
 
     public void dropNamespace(String namespace)
     {
+        String remoteSchemaName = toRemoteSchema(namespace).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(namespace));
         try (Handle handle = Jdbi.open(connectionFactory)) {
             handle.createUpdate("" +
                             "DELETE FROM iceberg_namespace_properties " +
                             "WHERE catalog_name = :catalog AND namespace = :schema")
                     .bind("catalog", catalogId)
-                    .bind("schema", namespace)
+                    .bind("schema", remoteSchemaName)
                     .execute();
+        }
+    }
+
+    public List<String> getRemoteTables(String namespace)
+    {
+        String remoteSchemaName = toRemoteSchema(namespace).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(namespace));
+        try (Handle handle = Jdbi.open(connectionFactory)) {
+            return handle.createQuery("" +
+                            "SELECT table_name " +
+                            "FROM iceberg_tables " +
+                            "WHERE catalog_name = :catalog AND table_namespace = :namespace")
+                    .bind("catalog", catalogId)
+                    .bind("namespace", remoteSchemaName)
+                    .mapTo(String.class)
+                    .list();
         }
     }
 
@@ -149,6 +197,8 @@ public class JdbcIcebergClient
 
     public void alterTable(String schemaName, String tableName, String newMetadataLocation, String previousMetadataLocation)
     {
+        String remoteSchemaName = toRemoteSchema(schemaName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(schemaName));
+        String remoteTableName = toRemoteTable(schemaName, tableName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new TableNotFoundException(new SchemaTableName(schemaName, tableName)));
         try (Handle handle = Jdbi.open(connectionFactory)) {
             handle.createUpdate("" +
                             "UPDATE iceberg_tables " +
@@ -157,22 +207,24 @@ public class JdbcIcebergClient
                     .bind("metadata_location", newMetadataLocation)
                     .bind("previous_metadata_location", previousMetadataLocation)
                     .bind("catalog", catalogId)
-                    .bind("schema", schemaName)
-                    .bind("table", tableName)
+                    .bind("schema", remoteSchemaName)
+                    .bind("table", remoteTableName)
                     .execute();
         }
     }
 
     public Optional<String> getMetadataLocation(String schemaName, String tableName)
     {
+        String remoteSchemaName = toRemoteSchema(schemaName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(schemaName));
+        String remoteTableName = toRemoteTable(schemaName, tableName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new TableNotFoundException(new SchemaTableName(schemaName, tableName)));
         try (Handle handle = Jdbi.open(connectionFactory)) {
             return handle.createQuery("" +
                             "SELECT metadata_location " +
                             "FROM iceberg_tables " +
                             "WHERE catalog_name = :catalog AND table_namespace = :schema AND table_name = :table")
                     .bind("catalog", catalogId)
-                    .bind("schema", schemaName)
-                    .bind("table", tableName)
+                    .bind("schema", remoteSchemaName)
+                    .bind("table", remoteTableName)
                     .mapTo(String.class)
                     .findOne();
         }
@@ -180,15 +232,18 @@ public class JdbcIcebergClient
 
     public void dropTable(String schemaName, String tableName)
     {
+        String remoteSchemaName = toRemoteSchema(schemaName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(schemaName));
+        String remoteTableName = toRemoteTable(schemaName, tableName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new TableNotFoundException(new SchemaTableName(schemaName, tableName)));
         try (Handle handle = Jdbi.open(connectionFactory)) {
             handle.createUpdate("" +
                             "DELETE FROM iceberg_tables " +
                             "WHERE catalog_name = :catalog AND table_namespace = :schema AND table_name = :table")
                     .bind("catalog", catalogId)
-                    .bind("schema", schemaName)
-                    .bind("table", tableName)
+                    .bind("schema", remoteSchemaName)
+                    .bind("table", remoteTableName)
                     .execute();
         }
+        this.remoteSchemaToRemoteTableNamesCache.invalidate(remoteSchemaName);
     }
 
     public void renameTable(SchemaTableName from, SchemaTableName to)
@@ -212,15 +267,15 @@ public class JdbcIcebergClient
     {
         private final String catalogName;
         private final String namespace;
-        private final String key;
-        private final String value;
+        private final String propertyKey;
+        private final String propertyValue;
 
-        public NamespaceProperties(String catalogName, String namespace, String key, String value)
+        public NamespaceProperties(String catalogName, String namespace, String propertyKey, String propertyValue)
         {
             this.catalogName = catalogName;
             this.namespace = namespace;
-            this.key = key;
-            this.value = value;
+            this.propertyKey = propertyKey;
+            this.propertyValue = propertyValue;
         }
 
         public String getCatalogName()
@@ -233,14 +288,102 @@ public class JdbcIcebergClient
             return namespace;
         }
 
-        public String getKey()
+        public String getPropertyKey()
         {
-            return key;
+            return propertyKey;
         }
 
-        public String getValue()
+        public String getPropertyValue()
         {
-            return value;
+            return propertyValue;
+        }
+    }
+
+    public Map<String, Optional<RemoteDatabaseObject>> createRemoteDatabaseObjectsMapping(List<String> remoteNames)
+    {
+        Map<String, Optional<RemoteDatabaseObject>> mapping = new HashMap<>();
+        for (String remoteName : remoteNames) {
+            mapping.merge(
+                    remoteName.toLowerCase(ENGLISH),
+                    Optional.of(RemoteDatabaseObject.of(remoteName)),
+                    (currentValue, collision) -> currentValue.map(current -> current.registerCollision(collision.get().getOnlyRemoteName())));
+        }
+
+        return mapping;
+    }
+
+    public Optional<RemoteDatabaseObject> toRemoteSchema(String schemaName)
+    {
+        requireNonNull(schemaName, "schemaName is null");
+        verify(schemaName.codePoints().noneMatch(Character::isUpperCase), "Expected schema name from internal metadata to be lowercase: %s", schemaName);
+        if (!caseInsensitiveNameMatching) {
+            return Optional.of(RemoteDatabaseObject.of(schemaName));
+        }
+
+        Map<String, Optional<RemoteDatabaseObject>> remoteSchemaMapping = createRemoteDatabaseObjectsMapping(getRemoteNamespaces());
+
+        return remoteSchemaMapping.getOrDefault(schemaName, Optional.empty());
+    }
+
+    public Optional<RemoteDatabaseObject> toRemoteTable(String schemaName, String tableName)
+    {
+        requireNonNull(schemaName, "schemaName is null");
+        requireNonNull(tableName, "tableName is null");
+        verify(tableName.codePoints().noneMatch(Character::isUpperCase), "Expected table name from internal metadata to be lowercase: %s", tableName);
+        verify(schemaName.codePoints().noneMatch(Character::isUpperCase), "Expected schema name from internal metadata to be lowercase: %s", schemaName);
+        if (!caseInsensitiveNameMatching) {
+            return Optional.of(RemoteDatabaseObject.of(tableName));
+        }
+        String remoteSchemaName = toRemoteSchema(schemaName).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(schemaName));
+        Map<String, Optional<RemoteDatabaseObject>> remoteTableMapping = new HashMap<>();
+        try {
+            remoteTableMapping = this.remoteSchemaToRemoteTableNamesCache.get(tableName, () -> createRemoteDatabaseObjectsMapping(getRemoteTables(remoteSchemaName)));
+        }
+        catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+        return remoteTableMapping.getOrDefault(tableName, Optional.empty());
+    }
+
+    public static final class RemoteDatabaseObject
+    {
+        private final Set<String> remoteNames;
+
+        private RemoteDatabaseObject(Set<String> remoteNames)
+        {
+            this.remoteNames = ImmutableSet.copyOf(remoteNames);
+        }
+
+        public static RemoteDatabaseObject of(String remoteName)
+        {
+            return new RemoteDatabaseObject(ImmutableSet.of(remoteName));
+        }
+
+        public RemoteDatabaseObject registerCollision(String ambiguousName)
+        {
+            return new RemoteDatabaseObject(ImmutableSet.<String>builderWithExpectedSize(remoteNames.size() + 1)
+                    .addAll(remoteNames)
+                    .add(ambiguousName)
+                    .build());
+        }
+
+        public String getAnyRemoteName()
+        {
+            return Collections.min(remoteNames);
+        }
+
+        public String getOnlyRemoteName()
+        {
+            if (!isAmbiguous()) {
+                return getOnlyElement(remoteNames);
+            }
+
+            throw new TrinoException(ICEBERG_AMBIGUOUS_OBJECT_NAME, "Found ambiguous names in Jdbc connected database when looking up '" + getAnyRemoteName().toLowerCase(ENGLISH) + "': " + remoteNames);
+        }
+
+        public boolean isAmbiguous()
+        {
+            return remoteNames.size() > 1;
         }
     }
 }

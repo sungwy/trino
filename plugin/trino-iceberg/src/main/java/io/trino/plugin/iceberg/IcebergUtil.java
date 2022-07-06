@@ -146,34 +146,35 @@ public final class IcebergUtil
         return ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(table.getParameters().get(TABLE_TYPE_PROP));
     }
 
-    public static Table loadIcebergTable(TrinoCatalog catalog, IcebergTableOperationsProvider tableOperationsProvider, ConnectorSession session, SchemaTableName table)
+    public static Table loadIcebergTable(TrinoCatalog catalog, IcebergTableOperationsProvider tableOperationsProvider, ConnectorSession session, String schemaName, String tableName)
     {
         TableOperations operations = tableOperationsProvider.createTableOperations(
                 catalog,
                 session,
-                table.getSchemaName(),
-                table.getTableName(),
+                schemaName,
+                tableName,
                 Optional.empty(),
                 Optional.empty());
-        return new BaseTable(operations, quotedTableName(table));
+        return new BaseTable(operations, quotedTableName(new SchemaTableName(schemaName, tableName)));
     }
 
     public static Table getIcebergTableWithMetadata(
             TrinoCatalog catalog,
             IcebergTableOperationsProvider tableOperationsProvider,
             ConnectorSession session,
-            SchemaTableName table,
+            String schemaName,
+            String tableName,
             TableMetadata tableMetadata)
     {
         IcebergTableOperations operations = tableOperationsProvider.createTableOperations(
                 catalog,
                 session,
-                table.getSchemaName(),
-                table.getTableName(),
+                schemaName,
+                tableName,
                 Optional.empty(),
                 Optional.empty());
         operations.initializeFromMetadata(tableMetadata);
-        return new BaseTable(operations, quotedTableName(table));
+        return new BaseTable(operations, quotedTableName(new SchemaTableName(schemaName, tableName)));
     }
 
     public static Map<String, Object> getIcebergTableProperties(Table icebergTable)

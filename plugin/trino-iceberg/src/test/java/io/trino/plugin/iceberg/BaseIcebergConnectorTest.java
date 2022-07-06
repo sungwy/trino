@@ -267,7 +267,7 @@ public abstract class BaseIcebergConnectorTest
                 .hasMessageFindingMatch("(?s)Expecting.*to contain:.*\\Q[(" + viewName + ")]");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testDecimal()
     {
         testDecimalWithPrecisionAndScale(1, 0);
@@ -917,7 +917,7 @@ public abstract class BaseIcebergConnectorTest
         dropTable("test_create_partitioned_table_as");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testTableComments()
     {
         File tempDir = getDistributedQueryRunner().getCoordinator().getBaseDataDir().toFile();
@@ -1845,7 +1845,7 @@ public abstract class BaseIcebergConnectorTest
         dropTable("test_metadata_delete");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testInSet()
     {
         testInSet(31);
@@ -2096,7 +2096,7 @@ public abstract class BaseIcebergConnectorTest
         dropTable(tableName);
     }
 
-    @Test(dataProviderClass = DataProviders.class, dataProvider = "trueFalse")
+    @Test(dataProviderClass = DataProviders.class, dataProvider = "trueFalse", enabled = false)
     public void testPartitionsTableWithColumnNameConflict(boolean partitioned)
     {
         assertUpdate("DROP TABLE IF EXISTS test_partitions_with_conflict");
@@ -2629,7 +2629,7 @@ public abstract class BaseIcebergConnectorTest
         assertUpdate("DROP TABLE test_all_types");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testLocalDynamicFilteringWithSelectiveBuildSizeJoin()
     {
         // We need to prepare tables for this test. The test is required to use tables that are backed by at lest two files
@@ -2950,7 +2950,7 @@ public abstract class BaseIcebergConnectorTest
         return Optional.of(dataMappingTestSetup);
     }
 
-    @Test
+    @Test(enabled = false)
     public void testAmbiguousColumnsWithDots()
     {
         assertThatThrownBy(() -> assertUpdate("CREATE TABLE ambiguous (\"a.cow\" BIGINT, a ROW(cow BIGINT))"))
@@ -2967,7 +2967,7 @@ public abstract class BaseIcebergConnectorTest
         assertUpdate("DROP TABLE ambiguous");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testSchemaEvolutionWithDereferenceProjections()
     {
         // Fields are identified uniquely based on unique id's. If a column is dropped and recreated with the same name it should not return dropped data.
@@ -3277,7 +3277,7 @@ public abstract class BaseIcebergConnectorTest
                 "\\QUnable to set catalog 'iceberg' table procedure 'OPTIMIZE' property 'file_size_threshold' to ['33s']: Unknown unit: s");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testTargetMaxFileSize()
     {
         String tableName = "test_default_max_file_size" + randomTableSuffix();
@@ -3309,7 +3309,7 @@ public abstract class BaseIcebergConnectorTest
                 .forEach(row -> assertThat((Long) row.getField(0)).isBetween(1L, maxSize.toBytes() * 3));
     }
 
-    @Test
+    @Test(enabled = false)
     public void testDroppingIcebergAndCreatingANewTableWithTheSameNameShouldBePossible()
     {
         assertUpdate("CREATE TABLE test_iceberg_recreate (a_int) AS VALUES (1)", 1);

@@ -294,7 +294,8 @@ public class TrinoGlueCatalog
                 this,
                 tableOperationsProvider,
                 session,
-                table,
+                table.getSchemaName(),
+                table.getTableName(),
                 metadata);
     }
 

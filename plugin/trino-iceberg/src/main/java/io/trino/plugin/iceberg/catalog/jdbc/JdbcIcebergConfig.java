@@ -28,6 +28,7 @@ public class JdbcIcebergConfig
     private String connectionPassword;
     private String catalogId;
     private Optional<String> defaultWarehouseDir = Optional.empty();
+    private boolean caseInsensitiveNameMatching;
 
     public String getConnectionUrl()
     {
@@ -93,6 +94,19 @@ public class JdbcIcebergConfig
     public JdbcIcebergConfig setDefaultWarehouseDir(String defaultWarehouseDir)
     {
         this.defaultWarehouseDir = Optional.ofNullable(defaultWarehouseDir);
+        return this;
+    }
+
+    public boolean isCaseInsensitiveNameMatching()
+    {
+        return caseInsensitiveNameMatching;
+    }
+
+    @Config("iceberg.metastore.jdbc.case-insensitive-name-matching")
+    @ConfigDescription("Match schema and table names case-insensitively")
+    public JdbcIcebergConfig setCaseInsensitiveNameMatching(boolean caseInsensitiveNameMatching)
+    {
+        this.caseInsensitiveNameMatching = caseInsensitiveNameMatching;
         return this;
     }
 }

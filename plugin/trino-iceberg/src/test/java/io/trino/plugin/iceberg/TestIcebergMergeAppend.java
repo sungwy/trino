@@ -29,7 +29,6 @@ import io.trino.plugin.iceberg.catalog.IcebergTableOperationsProvider;
 import io.trino.plugin.iceberg.catalog.TrinoCatalog;
 import io.trino.plugin.iceberg.catalog.file.FileMetastoreTableOperationsProvider;
 import io.trino.plugin.iceberg.catalog.hms.TrinoHiveCatalog;
-import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.type.TestingTypeManager;
 import io.trino.testing.AbstractTestQueryFramework;
 import io.trino.testing.DistributedQueryRunner;
@@ -86,8 +85,7 @@ public class TestIcebergMergeAppend
     public void testInsertWithAppend()
     {
         assertUpdate("CREATE TABLE table_to_insert (_bigint BIGINT, _varchar VARCHAR)");
-        Table table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("tpch", "table_to_insert"));
+        Table table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "tpch", "table_to_insert");
         table.updateProperties()
                 .set("commit.manifest.min-count-to-merge", "2")
                 .commit();

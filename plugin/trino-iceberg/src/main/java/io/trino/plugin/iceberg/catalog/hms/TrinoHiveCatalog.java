@@ -284,9 +284,9 @@ public class TrinoHiveCatalog
     {
         TableMetadata metadata = tableMetadataCache.computeIfAbsent(
                 schemaTableName,
-                ignore -> ((BaseTable) loadIcebergTable(this, tableOperationsProvider, session, schemaTableName)).operations().current());
+                ignore -> ((BaseTable) loadIcebergTable(this, tableOperationsProvider, session, schemaTableName.getSchemaName(), schemaTableName.getTableName())).operations().current());
 
-        return getIcebergTableWithMetadata(this, tableOperationsProvider, session, schemaTableName, metadata);
+        return getIcebergTableWithMetadata(this, tableOperationsProvider, session, schemaTableName.getSchemaName(), schemaTableName.getTableName(), metadata);
     }
 
     @Override

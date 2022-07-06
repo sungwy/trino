@@ -29,7 +29,6 @@ public class JdbcIcebergTableOperations
         extends AbstractIcebergTableOperations
 {
     private final JdbcIcebergClient jdbcClient;
-    protected int version = -1;
 
     public JdbcIcebergTableOperations(
             FileIO fileIo,
@@ -47,7 +46,7 @@ public class JdbcIcebergTableOperations
     @Override
     protected String getRefreshedLocation(boolean invalidateCaches)
     {
-        return jdbcClient.getMetadataLocation(database, tableName)
+        return jdbcClient.getMetadataLocation(getSchemaTableName().getSchemaName(), getSchemaTableName().getTableName())
                 .orElseThrow(() -> new TableNotFoundException(getSchemaTableName()));
     }
 

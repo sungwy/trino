@@ -28,7 +28,6 @@ import io.trino.plugin.iceberg.catalog.IcebergTableOperationsProvider;
 import io.trino.plugin.iceberg.catalog.TrinoCatalog;
 import io.trino.plugin.iceberg.catalog.file.FileMetastoreTableOperationsProvider;
 import io.trino.plugin.iceberg.catalog.hms.TrinoHiveCatalog;
-import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.type.TestingTypeManager;
 import io.trino.testing.AbstractTestQueryFramework;
 import io.trino.testing.QueryRunner;
@@ -399,6 +398,6 @@ public class TestIcebergV2
                 false,
                 false,
                 false);
-        return (BaseTable) loadIcebergTable(catalog, tableOperationsProvider, SESSION, new SchemaTableName("tpch", tableName));
+        return (BaseTable) loadIcebergTable(catalog, tableOperationsProvider, SESSION, "tpch", tableName);
     }
 }

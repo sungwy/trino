@@ -5,9 +5,9 @@
 CREATE TABLE iceberg_namespace_properties (
     catalog_name VARCHAR(255) NOT NULL,
     namespace VARCHAR(255) NOT NULL,
-    key VARCHAR(5500),
-    value VARCHAR(5500),
-    PRIMARY KEY (catalog_name, namespace, key )
+    property_key VARCHAR(5500),
+    property_value VARCHAR(5500),
+    PRIMARY KEY (catalog_name, namespace, property_key)
 );
 
 CREATE TABLE iceberg_tables (

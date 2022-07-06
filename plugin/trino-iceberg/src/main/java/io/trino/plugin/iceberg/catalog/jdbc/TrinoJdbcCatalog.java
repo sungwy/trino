@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import io.trino.plugin.base.CatalogName;
 import io.trino.plugin.iceberg.catalog.AbstractTrinoCatalog;
 import io.trino.plugin.iceberg.catalog.IcebergTableOperationsProvider;
+import io.trino.plugin.iceberg.catalog.jdbc.JdbcIcebergClient.RemoteDatabaseObject;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.CatalogSchemaTableName;
 import io.trino.spi.connector.ConnectorMaterializedViewDefinition;
@@ -25,6 +26,7 @@ import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorViewDefinition;
 import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.security.TrinoPrincipal;
 import io.trino.spi.type.TypeManager;
 import org.apache.hadoop.fs.Path;
@@ -74,7 +76,7 @@ public class TrinoJdbcCatalog
     @Override
     public List<String> listNamespaces(ConnectorSession session)
     {
-        return jdbcClient.getNamespaces();
+        return jdbcClient.getRemoteNamespaces();
     }
 
     @Override
@@ -154,11 +156,13 @@ public class TrinoJdbcCatalog
     @Override
     public Table loadTable(ConnectorSession session, SchemaTableName schemaTableName)
     {
+        String remoteSchemaName = jdbcClient.toRemoteSchema(schemaTableName.getSchemaName()).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new SchemaNotFoundException(schemaTableName.getSchemaName()));
+        String remoteTableName = jdbcClient.toRemoteTable(schemaTableName.getSchemaName(), schemaTableName.getTableName()).map(RemoteDatabaseObject::getOnlyRemoteName).orElseThrow(() -> new TableNotFoundException(schemaTableName));
         TableMetadata metadata = tableMetadataCache.computeIfAbsent(
                 schemaTableName,
-                ignore -> ((BaseTable) loadIcebergTable(this, tableOperationsProvider, session, schemaTableName)).operations().current());
+                ignore -> ((BaseTable) loadIcebergTable(this, tableOperationsProvider, session, remoteSchemaName, remoteTableName)).operations().current());
 
-        return getIcebergTableWithMetadata(this, tableOperationsProvider, session, schemaTableName, metadata);
+        return getIcebergTableWithMetadata(this, tableOperationsProvider, session, remoteSchemaName, remoteTableName, metadata);
     }
 
     @Override

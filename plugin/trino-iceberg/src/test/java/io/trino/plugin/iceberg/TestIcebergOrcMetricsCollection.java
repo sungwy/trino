@@ -32,7 +32,6 @@ import io.trino.plugin.iceberg.catalog.TrinoCatalog;
 import io.trino.plugin.iceberg.catalog.file.FileMetastoreTableOperationsProvider;
 import io.trino.plugin.iceberg.catalog.hms.TrinoHiveCatalog;
 import io.trino.plugin.tpch.TpchPlugin;
-import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.type.TestingTypeManager;
 import io.trino.testing.AbstractTestQueryFramework;
 import io.trino.testing.DistributedQueryRunner;
@@ -121,8 +120,7 @@ public class TestIcebergOrcMetricsCollection
     public void testMetrics()
     {
         assertUpdate("create table no_metrics (c1 varchar, c2 varchar)");
-        Table table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("test_schema", "no_metrics"));
+        Table table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "test_schema", "no_metrics");
         // skip metrics for all columns
         table.updateProperties().set("write.metadata.metrics.default", "none").commit();
         // add one row
@@ -138,8 +136,7 @@ public class TestIcebergOrcMetricsCollection
 
         // keep c1 metrics
         assertUpdate("create table c1_metrics (c1 varchar, c2 varchar)");
-        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("test_schema", "c1_metrics"));
+        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "test_schema", "c1_metrics");
         table.updateProperties()
                 .set("write.metadata.metrics.default", "none")
                 .set("write.metadata.metrics.column.c1", "full")
@@ -156,8 +153,7 @@ public class TestIcebergOrcMetricsCollection
 
         // set c1 metrics mode to count
         assertUpdate("create table c1_metrics_count (c1 varchar, c2 varchar)");
-        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("test_schema", "c1_metrics_count"));
+        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "test_schema", "c1_metrics_count");
         table.updateProperties()
                 .set("write.metadata.metrics.default", "none")
                 .set("write.metadata.metrics.column.c1", "counts")
@@ -174,8 +170,7 @@ public class TestIcebergOrcMetricsCollection
 
         // set c1 metrics mode to truncate(10)
         assertUpdate("create table c1_metrics_truncate (c1 varchar, c2 varchar)");
-        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("test_schema", "c1_metrics_truncate"));
+        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "test_schema", "c1_metrics_truncate");
         table.updateProperties()
                 .set("write.metadata.metrics.default", "none")
                 .set("write.metadata.metrics.column.c1", "truncate(10)")
@@ -194,8 +189,7 @@ public class TestIcebergOrcMetricsCollection
 
         // keep both c1 and c2 metrics
         assertUpdate("create table c_metrics (c1 varchar, c2 varchar)");
-        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("test_schema", "c_metrics"));
+        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "test_schema", "c_metrics");
         table.updateProperties()
                 .set("write.metadata.metrics.column.c1", "full")
                 .set("write.metadata.metrics.column.c2", "full")
@@ -211,8 +205,7 @@ public class TestIcebergOrcMetricsCollection
 
         // keep all metrics
         assertUpdate("create table metrics (c1 varchar, c2 varchar)");
-        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION,
-                new SchemaTableName("test_schema", "metrics"));
+        table = IcebergUtil.loadIcebergTable(trinoCatalog, tableOperationsProvider, TestingConnectorSession.SESSION, "test_schema", "metrics");
         table.updateProperties()
                 .set("write.metadata.metrics.default", "full")
                 .commit();

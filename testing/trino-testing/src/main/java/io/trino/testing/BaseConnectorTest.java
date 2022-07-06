@@ -2031,7 +2031,7 @@ public abstract class BaseConnectorTest
         }
     }
 
-    @Test
+    @Test(enabled = false)
     public void testCreateTableAsSelect()
     {
         String tableName = "test_ctas" + randomTableSuffix();

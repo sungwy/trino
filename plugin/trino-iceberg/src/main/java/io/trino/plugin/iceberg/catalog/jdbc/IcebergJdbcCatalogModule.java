@@ -47,6 +47,6 @@ public class IcebergJdbcCatalogModule
                         config.getConnectionUrl(),
                         config.getConnectionUser(),
                         config.getConnectionPassword()),
-                config.getCatalogId());
+                config);
     }
 }
