@@ -16,10 +16,16 @@ package io.trino.plugin.iceberg.catalog.jdbc;
 import io.airlift.configuration.Config;
 import io.airlift.configuration.ConfigDescription;
 import io.airlift.configuration.ConfigSecuritySensitive;
+import io.airlift.units.Duration;
+import io.airlift.units.MinDuration;
 
+import javax.validation.constraints.Min;
 import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 
 import java.util.Optional;
+
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 public class JdbcIcebergConfig
 {
@@ -29,6 +35,8 @@ public class JdbcIcebergConfig
     private String catalogId;
     private Optional<String> defaultWarehouseDir = Optional.empty();
     private boolean caseInsensitiveNameMatching;
+    private Duration caseInsensitiveNameMatchingCacheTtl = new Duration(1, MINUTES);
+    private long caseInsensitiveNameMatchingCacheMaximumSize = 10000;
 
     public String getConnectionUrl()
     {
@@ -107,6 +115,35 @@ public class JdbcIcebergConfig
     public JdbcIcebergConfig setCaseInsensitiveNameMatching(boolean caseInsensitiveNameMatching)
     {
         this.caseInsensitiveNameMatching = caseInsensitiveNameMatching;
+        return this;
+    }
+
+    @NotNull
+    @MinDuration("0ms")
+    public Duration getCaseInsensitiveNameMatchingCacheTtl()
+    {
+        return caseInsensitiveNameMatchingCacheTtl;
+    }
+
+    @Config("iceberg.metastore.jdbc.case-insensitive-name-matching.cache-ttl")
+    public JdbcIcebergConfig setCaseInsensitiveNameMatchingCacheTtl(Duration caseInsensitiveNameMatchingCacheTtl)
+    {
+        this.caseInsensitiveNameMatchingCacheTtl = caseInsensitiveNameMatchingCacheTtl;
+        return this;
+    }
+
+    @NotNull
+    @Min(1)
+    public long getCaseInsensitiveNameMatchingCacheMaximumSize()
+    {
+        return caseInsensitiveNameMatchingCacheMaximumSize;
+    }
+
+    @Config("iceberg.metastore.jdbc.case-insensitive-name-matching.cache-maximum-size")
+    @ConfigDescription("Maximum number of objects stored in the metadata cache")
+    public JdbcIcebergConfig setCaseInsensitiveNameMatchingCacheMaximumSize(long caseInsensitiveNameMatchingCacheMaximumSize)
+    {
+        this.caseInsensitiveNameMatchingCacheMaximumSize = caseInsensitiveNameMatchingCacheMaximumSize;
         return this;
     }
 }

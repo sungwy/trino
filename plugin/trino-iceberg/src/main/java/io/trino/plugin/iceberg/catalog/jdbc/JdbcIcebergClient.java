@@ -42,7 +42,7 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_AMBIGUOUS_OBJECT_NAME;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class JdbcIcebergClient
 {
@@ -57,9 +57,9 @@ public class JdbcIcebergClient
         this.catalogId = requireNonNull(config.getCatalogId(), "catalogId is null");
         this.caseInsensitiveNameMatching = config.isCaseInsensitiveNameMatching();
         this.remoteSchemaToRemoteTableNamesCache = EvictableCacheBuilder.newBuilder()
-                .maximumWeight(100000)
+                .maximumWeight(config.getCaseInsensitiveNameMatchingCacheMaximumSize())
                 .weigher((Weigher<String, Map<String, Optional<RemoteDatabaseObject>>>) (key, value) -> value.size())
-                .expireAfterWrite(10, MINUTES)
+                .expireAfterWrite(config.getCaseInsensitiveNameMatchingCacheTtl().toMillis(), MILLISECONDS)
                 .build();
     }
 
