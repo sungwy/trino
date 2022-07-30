@@ -99,6 +99,24 @@ public class TestIcebergPlugin
     }
 
     @Test
+    public void testJdbcMetastore()
+    {
+        ConnectorFactory factory = getConnectorFactory();
+
+        factory.create(
+                "test",
+                Map.of(
+                        "iceberg.catalog.type", "jdbc",
+                        "iceberg.metastore.jdbc.connection-url", "jdbc:postgresql://localhost:5432/test",
+                        "iceberg.metastore.jdbc.connection-user", "alice",
+                        "iceberg.metastore.jdbc.connection-password", "password",
+                        "iceberg.metastore.jdbc.catalogid", "test",
+                        "iceberg.metastore.jdbc.default-warehouse-dir", "s3://bucket"),
+                new TestingConnectorContext())
+                .shutdown();
+    }
+
+    @Test
     public void testRecordingMetastore()
     {
         ConnectorFactory factory = getConnectorFactory();

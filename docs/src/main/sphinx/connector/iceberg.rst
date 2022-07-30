@@ -45,10 +45,10 @@ To use Iceberg, you need:
 Configuration
 -------------
 
-The connector supports two Iceberg catalog types, you may use either a Hive
-metastore service (HMS) or AWS Glue. The catalog type is determined by the
+The connector supports several Iceberg catalog types, you may use either a Hive
+metastore service (HMS), AWS Glue or JDBC. The catalog type is determined by the
 ``iceberg.catalog.type`` property, it can be set to either ``HIVE_METASTORE``
-or ``GLUE``.
+, ``GLUE`` or ``JDBC``.
 
 Hive metastore catalog
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -75,6 +75,25 @@ configuration properties as the Hive connector's Glue setup. See
 
     connector.name=iceberg
     iceberg.catalog.type=glue
+
+
+JDBC catalog
+^^^^^^^^^^^^
+
+At a minimum, ``iceberg.metastore.jdbc.connection-url`` and
+``iceberg.metastore.jdbc.catalogid`` must be configured.
+A jar file of JDBC driver needs to be located in the plugin directory
+when using it.
+
+.. code-block:: text
+
+    connector.name=iceberg
+    iceberg.catalog.type=jdbc
+    iceberg.metastore.jdbc.catalogid=test
+    iceberg.metastore.jdbc.connection-url=jdbc:postgresql://example.net:5432/database
+    iceberg.metastore.jdbc.connection-user=root
+    iceberg.metastore.jdbc.connection-password=secret
+    iceberg.metastore.jdbc.default-warehouse-dir=s3://bucket
 
 
 General configuration

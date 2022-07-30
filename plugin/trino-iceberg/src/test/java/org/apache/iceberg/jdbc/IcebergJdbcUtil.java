@@ -11,13 +11,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.iceberg;
 
-public enum CatalogType
+package org.apache.iceberg.jdbc;
+
+public final class IcebergJdbcUtil
 {
-    TESTING_FILE_METASTORE,
-    HIVE_METASTORE,
-    GLUE,
-    JDBC,
-    /**/;
+    public static final String CREATE_CATALOG_TABLE = JdbcUtil.CREATE_CATALOG_TABLE;
+    public static final String CREATE_NAMESPACE_PROPERTIES_TABLE = JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE;
+
+    private IcebergJdbcUtil() {}
 }
